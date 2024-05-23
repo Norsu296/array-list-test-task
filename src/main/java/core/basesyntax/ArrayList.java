@@ -1,170 +1,126 @@
 package core.basesyntax;
 
-//import jdk.internal.util.ArraysSupport;
 import java.util.Arrays;
 import java.util.NoSuchElementException;
 
-
 public class ArrayList<T> implements List<T> {
-
-
-    private static final int def_capacity = 10;
-    private static final Object[] empty_arraydata = {};
-
-
-    private T[] array = (T[]) new Object[def_capacity];
+    private static final int DEFAULT_CAPACITY = 10;
+    private Object[] elements;
     private int size;
-    private int cursor;
 
-
-    private String errorMsg(int index) {
-        return "Index: " + index + ", Size: " + size;
-    }
-
-
-    private Object[] grow() {
-        int oldCapacity = array.length;
-        double multiplicator = 1;
-        if (oldCapacity == size) {
-            multiplicator = 1.5;
+    @Override
+    public String toString() {
+        if (size == 0) {
+            return "[]";
         }
-        if (oldCapacity > 0 || array != empty_arraydata) {
-            int newCapacity = (int) (oldCapacity * multiplicator + 1);
-            return array = Arrays.copyOf(array, newCapacity);
-        } else {
-            return array = (T[]) new Object[def_capacity];
-        }
-    }
-
-
-    public static Object[] listToArray(List<?> list) {
-        if (!list.isEmpty()) {
-            Object[] tempArray = new Object[list.size()];
-            for (int index = 0; index < list.size(); index++) {
-                tempArray[index] = list.get(index);
+        StringBuilder sb = new StringBuilder();
+        sb.append('[');
+        for (int i = 0; i < size; i++) {
+            sb.append(elements[i]);
+            if (i < size - 1) {
+                sb.append(", ");
             }
-            return tempArray;
         }
-        return null;
+        sb.append(']');
+        return sb.toString();
     }
 
+    public ArrayList() {
+        this.elements = new Object[DEFAULT_CAPACITY];
+        this.size = 0;
+    }
 
     @Override
     public void add(T value) {
-        int index = cursor;
-        ArrayList.this.add(value, index);
-        cursor = index + 1;
+        ensureCapacity(size + 1);
+        elements[size++] = value;
     }
-
 
     @Override
     public void add(T value, int index) {
         if (index > size || index < 0) {
-            throw new ArrayListIndexOutOfBoundsException(errorMsg(index));
-        } else {
-            int s = size;
-            if (s == array.length) {
-                array = (T[]) grow();
-            }
-            System.arraycopy(array, index,
-                array, index + 1,
-                s - index);
-            array[index] = value;
-            size = s + 1;
+            throw new ArrayListIndexOutOfBoundsException(String.format("Index: %d, Size: %d", index, size));
         }
+        ensureCapacity(size + 1);
+        System.arraycopy(elements, index, elements, index + 1, size - index);
+        elements[index] = value;
+        size++;
     }
-
 
     @Override
     public void addAll(List<T> list) {
-        if (!list.isEmpty()) {
-            T[] tempArray = (T[]) listToArray(list);
-            int newCapacity = size + tempArray.length;
-            array = Arrays.copyOf(array, newCapacity);
-            System.arraycopy(tempArray, 0, array, size, tempArray.length);
-            size = newCapacity;
+        ensureCapacity(size + list.size());
+        for (int i = 0; i < list.size(); i++) {
+            elements[size++] = list.get(i);
         }
     }
-
 
     @Override
     public T get(int index) {
-        if (index >= size || index < 0) {
-            throw new ArrayListIndexOutOfBoundsException(errorMsg(index));
-        } else {
-            return array[index];
+        if (index < 0 || index >= size) {
+            throw new ArrayListIndexOutOfBoundsException("Index: " + index + ", Size: " + size);
         }
+        return (T) elements[index];
     }
-
 
     @Override
     public void set(T value, int index) {
-        if (index >= size || index < 0) {
-            throw new ArrayListIndexOutOfBoundsException(errorMsg(index));
-        } else {
-            array[index] = value;
+        if (index < 0 || index >= size) {
+            throw new ArrayListIndexOutOfBoundsException("Index: " + index + ", Size: " + size);
         }
+        elements[index] = value;
     }
-
 
     @Override
     public T remove(int index) {
-        if (index > size || index < 0) {
-            throw new ArrayListIndexOutOfBoundsException(errorMsg(index));
-        } else {
-            int newSize = size - 1;
-            final T oldValue = get(index);
-            if (newSize > index) {
-                System.arraycopy(array, index + 1, array, index, newSize - index);
-            }
-            size = newSize;
-            array[newSize] = null;
-            return oldValue;
+        if (index < 0 || index >= size) {
+            throw new ArrayListIndexOutOfBoundsException("Index: " + index + ", Size: " + size);
         }
+        T oldValue = (T) elements[index];
+        int numMoved = size - index - 1;
+        if (numMoved > 0) {
+            System.arraycopy(elements, index + 1, elements, index, numMoved);
+        }
+        elements[--size] = null; // clear to let GC do its work
+        return oldValue;
     }
-
 
     @Override
     public T remove(T element) {
-        int index = 0;
-        found:
-        {
-            if (element == null) {
-                for (; index < size; index++) {
-                    if (array[index] == null) {
-                        remove(index);
-                        break found;
-                    }
+        if (element == null) {
+            for (int index = 0; index < size; index++) {
+                if (elements[index] == null) {
+                    return remove(index);
                 }
-            } else {
-                for (; index < size; index++) {
-                    if (element.equals(array[index])) {
-                        remove(index);
-                        break found;
-                    }
+            }
+        } else {
+            for (int index = 0; index < size; index++) {
+                if (element.equals(elements[index])) {
+                    return remove(index);
                 }
-                throw new NoSuchElementException();
             }
         }
-        return element;
+        throw new NoSuchElementException(String.format("Element: %s not found", element));
     }
-
 
     @Override
     public int size() {
         return size;
     }
 
-
     @Override
     public boolean isEmpty() {
-        boolean empty = true;
-        for (T element : array) {
-            if (element != null) {
-                empty = false;
-                break;
+        return size == 0;
+    }
+
+    private void ensureCapacity(int minCapacity) {
+        int actualCapacity = elements.length;
+        if (minCapacity > actualCapacity) {
+            int newCapacity = actualCapacity + (minCapacity >> 1);
+            if (newCapacity < minCapacity) {
+                newCapacity = minCapacity;
             }
+            elements = Arrays.copyOf(elements, newCapacity);
         }
-        return empty;
     }
 }
